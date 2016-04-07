@@ -19,8 +19,10 @@ package com.simonellistonball.nifi.twilio;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.http.NameValuePair;
@@ -63,6 +65,7 @@ public class PutSMSTwilio extends AbstractProcessor {
 
 	public static final PropertyDescriptor AUTH_TOKEN = new PropertyDescriptor.Builder()
 			.name("Auth token").description("Twilio Auth token").required(true)
+			.sensitive(true)
 			.addValidator(StandardValidators.NON_EMPTY_VALIDATOR).build();
 
 	public static final PropertyDescriptor FROM_NUMBER = new PropertyDescriptor.Builder()
@@ -104,7 +107,7 @@ public class PutSMSTwilio extends AbstractProcessor {
 		String from = context.getProperty(FROM_NUMBER).getValue();
 		String to = flowFile.getAttribute("sms.to");
 		String msg = flowFile.getAttribute("sms.body");
-		
+
 		TwilioRestClient client = new TwilioRestClient(accountSid, authToken);
 		MessageFactory messageFactory = client.getAccount().getMessageFactory();
 
@@ -116,10 +119,14 @@ public class PutSMSTwilio extends AbstractProcessor {
 		try {
 			Message message = messageFactory.create(params);
 
-			session.putAttribute(flowFile, "sms.sid", message.getSid());
-			session.putAttribute(flowFile, "sms.price", message.getPrice());
+			Map<String, String> attributes = new HashMap<String, String>();
+			attributes.put("sms.sid", message.getSid());
+			attributes.put("sms.price", message.getPrice());
+
+			flowFile = session.putAllAttributes(flowFile, attributes);
 			session.transfer(flowFile, REL_SUCCESS);
 		} catch (TwilioRestException e) {
+			flowFile = session.penalize(flowFile);
 			session.transfer(flowFile, REL_FAILURE);
 		}
 	}
