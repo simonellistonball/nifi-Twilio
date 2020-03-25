@@ -43,10 +43,10 @@ import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
-import com.twilio.sdk.TwilioRestClient;
-import com.twilio.sdk.TwilioRestException;
-import com.twilio.sdk.resource.factory.MessageFactory;
-import com.twilio.sdk.resource.instance.Message;
+import com.twilio.Twilio;
+import com.twilio.rest.api.v2010.account.Message;
+import com.twilio.type.PhoneNumber;
+
 
 @Tags({ "sms", "twilio", "notification" })
 @CapabilityDescription("Sends messages to the twilio service. Currently supports simple SMS")
@@ -108,24 +108,36 @@ public class PutSMSTwilio extends AbstractProcessor {
 		String to = flowFile.getAttribute("sms.to");
 		String msg = flowFile.getAttribute("sms.body");
 
-		TwilioRestClient client = new TwilioRestClient(accountSid, authToken);
-		MessageFactory messageFactory = client.getAccount().getMessageFactory();
-
-		List<NameValuePair> params = new ArrayList<NameValuePair>();
-		params.add(new BasicNameValuePair("Body", msg));
-		params.add(new BasicNameValuePair("To", to));
-		params.add(new BasicNameValuePair("From", from));
 
 		try {
-			Message message = messageFactory.create(params);
+		Twilio.init(accountSid, authToken);
+
+			Message message = Message
+							.creator(new PhoneNumber(to), // to
+											new PhoneNumber(from), // from
+											msg)
+							.create();
+
+//			System.out.println(message.getSid());
+
+
+
+//		TwilioRestClient client = new TwilioRestClient(accountSid, authToken);
+//		MessageFactory messageFactory = client.getAccount().getMessageFactory();
+
+//		List<NameValuePair> params = new ArrayList<NameValuePair>();
+//		params.add(new BasicNameValuePair("Body", msg));
+//		params.add(new BasicNameValuePair("To", to));
+//		params.add(new BasicNameValuePair("From", from));
+
+
+//			Message message = messageFactory.create(params);
 
 			Map<String, String> attributes = new HashMap<String, String>();
 			attributes.put("sms.sid", message.getSid());
-			attributes.put("sms.price", message.getPrice());
-
 			flowFile = session.putAllAttributes(flowFile, attributes);
 			session.transfer(flowFile, REL_SUCCESS);
-		} catch (TwilioRestException e) {
+		} catch (Exception e) {
 			flowFile = session.penalize(flowFile);
 			session.transfer(flowFile, REL_FAILURE);
 		}
